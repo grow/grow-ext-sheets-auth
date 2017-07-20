@@ -66,6 +66,7 @@ class SheetsAuthMiddleware(object):
         self.request_access_path = request_access_path
         self.sign_in_path = sign_in_path
         self.title = title
+        self.redirect_to_sheet_path = '/_grow-sheets-auth'
         self.static_paths = static_paths
         self.unprotected_paths = []
         if self.static_paths:
@@ -93,6 +94,11 @@ class SheetsAuthMiddleware(object):
         user = get_user()
         sheet = google_sheets.get_or_create_sheet_from_settings(
                 title=self.title, emails=self.admins)
+
+        if path == self.redirect_to_sheet_path:
+            sheet_id = google_sheets.Settings.instance().sheet_id
+            url = google_sheets.EDIT_URL.format(sheet_id)
+            return self.redirect(url, start_response)
 
         # Redirect to the sign in page if not signed in.
         if not user:

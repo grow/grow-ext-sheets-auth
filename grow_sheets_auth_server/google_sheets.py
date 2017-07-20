@@ -11,6 +11,7 @@ import os
 
 RELOAD_ACL_QUERY_PARAM = 'grow-reload-acl'
 SCOPE = 'https://www.googleapis.com/auth/drive'
+EDIT_URL = 'https://docs.google.com/spreadsheets/d/{}'
 
 discovery.logger.setLevel(logging.WARNING)
 
