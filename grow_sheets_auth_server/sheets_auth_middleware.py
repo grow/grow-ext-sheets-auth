@@ -43,8 +43,9 @@ def get_user():
     except ValueError as e:
         if 'Token expired' in str(e):
             logging.info('Firebase token expired.')
-            return
-        raise
+        else:
+            logging.exception('Problem with Firebase token.')
+    return None
 
 
 def can_read(sheet, user, path):
