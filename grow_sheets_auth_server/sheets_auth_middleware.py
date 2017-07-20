@@ -98,7 +98,7 @@ class SheetsAuthMiddleware(object):
         if not user:
             if self.sign_in_path:
                 url = '{}?next={}'.format(self.sign_in_path, path)
-                return self.redirect(self.sign_in_path, start_response)
+                return self.redirect(url, start_response)
             else:
                 status = '401 Unauthorized'
                 response_headers = []
@@ -107,7 +107,8 @@ class SheetsAuthMiddleware(object):
 
         if not can_read(sheet, user, path):
             if self.request_access_path:
-                return self.redirect(self.request_access_path, start_response)
+                url = self.request_access_path
+                return self.redirect(url, start_response)
             else:
                 status = '403 Forbidden'
                 response_headers = []
