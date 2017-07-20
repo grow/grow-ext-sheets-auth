@@ -47,9 +47,7 @@ def get_user():
         raise
 
 
-def can_read(user, path):
-    emails = ['jeremydw@gmail.com']
-    sheet = google_sheets.get_or_create_sheet_from_settings(emails=emails)
+def can_read(sheet, user, path):
     for row in sheet:
         if user.email == row.get('email') \
                 or user.domain == row.get('domain'):
@@ -59,14 +57,40 @@ def can_read(user, path):
 
 class SheetsAuthMiddleware(object):
 
-    def __init__(self, app):
+    def __init__(self, app, title=None, errors=None, admins=None,
+                 sign_in_path=None, static_dirs=None):
         self.app = app
+        self.errors = errors
+        self.admins = admins
+        self.sign_in_path = sign_in_path
+        self.title = title
+        self.static_dirs = None
 
     def __call__(self, environ, start_response):
+        path = environ['PATH_INFO']
+
+        # Static dirs are unprotected.
+        if self.static_dirs:
+            for static_dir in self.static_dirs:
+                if static_dir.startswith(path):
+                    return self.app(environ, start_response)
+
         user = get_user()
-        if not can_read(user, environ['PATH_INFO']):
+        sheet = google_sheets.get_or_create_sheet_from_settings(
+                title=self.title, emails=self.admins)
+
+        # Redirect to the sign in page if not signed in.
+        if not user:
+            status = '302 Found'
+            url = self.sign_in_path
+            response_headers = [('Location', url)]
+            start_response(status, response_headers)
+            return []
+
+        if not can_read(sheet, user, path):
             status = '403 Forbidden'
             response_headers = []
             start_response(status, response_headers)
             return []
+
         return self.app(environ, start_response)

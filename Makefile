@@ -1,5 +1,10 @@
-app_identity_email ?= grow-prod@appspot.gserviceaccount.com
+project ?= grow-prod
+app_identity_email ?= $(project)@appspot.gserviceaccount.com
 app_identity_key_path ?= key.pem
+
+enable-services:
+	gcloud service-management enable drive --project=$(project)
+	gcloud service-management enable storage-api.googleapis.com --project=$(project)
 
 create-app-identity-key:
 	gcloud iam service-accounts keys create \

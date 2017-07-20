@@ -1,6 +1,7 @@
+from google.appengine.api import memcache
+from google.appengine.ext import ndb
 from googleapiclient import discovery
 from oauth2client.contrib import appengine
-from google.appengine.ext import ndb
 import csv
 import httplib2
 import io
@@ -50,15 +51,20 @@ def _request_sheet_content(sheet_id, gid=None):
 
 
 def get_sheet(sheet_id, gid=None):
-    content = _request_sheet_content(sheet_id, gid=gid)
-    fp = io.BytesIO()
-    fp.write(content)
-    fp.seek(0)
-    reader = csv.DictReader(fp)
-    return [row for row in reader]
+    cache_key = 'google_sheet:{}:{}'.format(sheet_id, gid)
+    result = memcache.get(cache_key)
+    if result is None:
+        content = _request_sheet_content(sheet_id, gid=gid)
+        fp = io.BytesIO()
+        fp.write(content)
+        fp.seek(0)
+        reader = csv.DictReader(fp)
+        result = [row for row in reader]
+        memcache.set(cache_key, result, 60)
+    return result
 
 
-def create_sheet(title='Untitled Grow Access Sheet'):
+def create_sheet(title='Untitled Grow Website Access'):
     service = create_service()
     data = {
       'title' : title,
@@ -85,10 +91,12 @@ def share_sheet(file_id, emails):
         logging.info('Shared sheet -> {}'.format(email))
 
 
-def get_or_create_sheet_from_settings(emails=None):
+def get_or_create_sheet_from_settings(title=None, emails=None):
     settings = Settings.instance()
     if settings.sheet_id is None:
-        sheet_id = create_sheet()
+        if title:
+            title = '{} Website Access'.format(title)
+        sheet_id = create_sheet(title=title)
         share_sheet(sheet_id, emails)
         settings.sheet_id = sheet_id
         settings.put()
