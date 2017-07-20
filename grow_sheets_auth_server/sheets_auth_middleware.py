@@ -97,6 +97,7 @@ class SheetsAuthMiddleware(object):
         # Redirect to the sign in page if not signed in.
         if not user:
             if self.sign_in_path:
+                url = '{}?next={}'.format(self.sign_in_path, path)
                 return self.redirect(self.sign_in_path, start_response)
             else:
                 status = '401 Unauthorized'
