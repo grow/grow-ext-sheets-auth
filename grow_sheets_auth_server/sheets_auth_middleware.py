@@ -58,21 +58,36 @@ def can_read(sheet, user, path):
 class SheetsAuthMiddleware(object):
 
     def __init__(self, app, title=None, errors=None, admins=None,
-                 sign_in_path=None, static_dirs=None):
+                 request_access_path=None, sign_in_path=None,
+                 static_paths=None):
         self.app = app
         self.errors = errors
         self.admins = admins
+        self.request_access_path = request_access_path
         self.sign_in_path = sign_in_path
         self.title = title
-        self.static_dirs = None
+        self.static_paths = static_paths
+        self.unprotected_paths = []
+        if self.static_paths:
+            self.unprotected_paths += self.static_paths
+        if self.request_access_path:
+            self.unprotected_paths.append(self.request_access_path)
+        if self.sign_in_path:
+            self.unprotected_paths.append(self.sign_in_path)
+
+    def redirect(self, url, start_response):
+        status = '302 Found'
+        response_headers = [('Location', url)]
+        start_response(status, response_headers)
+        return []
 
     def __call__(self, environ, start_response):
         path = environ['PATH_INFO']
 
         # Static dirs are unprotected.
-        if self.static_dirs:
-            for static_dir in self.static_dirs:
-                if static_dir.startswith(path):
+        if self.unprotected_paths:
+            for dir_path in self.unprotected_paths:
+                if path.startswith(dir_path):
                     return self.app(environ, start_response)
 
         user = get_user()
@@ -81,16 +96,21 @@ class SheetsAuthMiddleware(object):
 
         # Redirect to the sign in page if not signed in.
         if not user:
-            status = '302 Found'
-            url = self.sign_in_path
-            response_headers = [('Location', url)]
-            start_response(status, response_headers)
-            return []
+            if self.sign_in_path:
+                return self.redirect(self.sign_in_path, start_response)
+            else:
+                status = '401 Unauthorized'
+                response_headers = []
+                start_response(status, response_headers)
+                return []
 
         if not can_read(sheet, user, path):
-            status = '403 Forbidden'
-            response_headers = []
-            start_response(status, response_headers)
-            return []
+            if self.request_access_path:
+                return self.redirect(self.request_access_path, start_response)
+            else:
+                status = '403 Forbidden'
+                response_headers = []
+                start_response(status, response_headers)
+                return []
 
         return self.app(environ, start_response)
