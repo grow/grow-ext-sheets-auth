@@ -2,12 +2,16 @@ from google.appengine.api import memcache
 from google.appengine.ext import ndb
 from googleapiclient import discovery
 from oauth2client.contrib import appengine
+import cgi
 import csv
 import httplib2
 import io
 import logging
+import os
 
+RELOAD_ACL_QUERY_PARAM = 'grow-reload-acl'
 SCOPE = 'https://www.googleapis.com/auth/drive'
+
 discovery.logger.setLevel(logging.WARNING)
 
 
@@ -25,6 +29,11 @@ class Settings(ndb.Model):
         return ent
 
 
+def get_query_dict():
+    query_string = os.getenv('QUERY_STRING', '')
+    return cgi.parse_qs(query_string, keep_blank_values=True)
+
+
 def create_service(api='drive', version='v2'):
     credentials = appengine.AppAssertionCredentials(SCOPE)
     http = httplib2.Http()
@@ -34,6 +43,7 @@ def create_service(api='drive', version='v2'):
 
 def _request_sheet_content(sheet_id, gid=None):
     service = create_service()
+    logging.info('Loading ACL -> {}'.format(sheet_id))
     resp = service.files().get(fileId=sheet_id).execute()
     if 'exportLinks' not in resp:
         raise Exception('Nothing to export: {}'.format(sheet_id))
@@ -51,9 +61,11 @@ def _request_sheet_content(sheet_id, gid=None):
 
 
 def get_sheet(sheet_id, gid=None):
+    query_dict = get_query_dict()
+    permit_cache = RELOAD_ACL_QUERY_PARAM not in query_dict
     cache_key = 'google_sheet:{}:{}'.format(sheet_id, gid)
     result = memcache.get(cache_key)
-    if result is None:
+    if result is None or not permit_cache:
         content = _request_sheet_content(sheet_id, gid=gid)
         fp = io.BytesIO()
         fp.write(content)
