@@ -12,6 +12,7 @@ setup(
         'grow_sheets_auth_server',
     ],
     install_requires=[
+        'google-api-python-client',
         'google-auth',
         'requests',
         'requests-toolbelt',
