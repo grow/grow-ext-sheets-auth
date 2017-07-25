@@ -4,56 +4,8 @@ vendor.add('extensions')
 from requests_toolbelt.adapters import appengine
 appengine.monkeypatch()
 
-import Cookie
-import google.auth.transport.requests
-import google.oauth2.id_token
-import logging
-import os
 import google_sheets
-
-
-HTTP_REQUEST = google.auth.transport.requests.Request()
-COOKIE_NAME = os.getenv('FIREBASE_TOKEN_COOKIE', 'firebaseToken')
-
-
-class User(object):
-
-    def __init__(self, data):
-        for key, value in data.iteritems():
-            setattr(self, key, value)
-
-    def __repr__(self):
-        return '<User {}>'.format(self.email)
-
-    @property
-    def domain(self):
-        return self.email.split('@')[-1]
-
-
-def get_user():
-    cookie = Cookie.SimpleCookie(os.getenv('HTTP_COOKIE'))
-    morsel = cookie.get(COOKIE_NAME)
-    if not morsel:
-        return
-    firebase_token = morsel.value
-    try:
-        claims = google.oauth2.id_token.verify_firebase_token(
-                        firebase_token, HTTP_REQUEST)
-        return User(claims)
-    except ValueError as e:
-        if 'Token expired' in str(e):
-            logging.info('Firebase token expired.')
-        else:
-            logging.exception('Problem with Firebase token.')
-    return None
-
-
-def can_read(sheet, user, path):
-    for row in sheet:
-        if user.email == row.get('email') \
-                or user.domain == row.get('domain'):
-            return True
-    return False
+import users
 
 
 class SheetsAuthMiddleware(object):
@@ -92,7 +44,7 @@ class SheetsAuthMiddleware(object):
                 if path.startswith(dir_path):
                     return self.app(environ, start_response)
 
-        user = get_user()
+        user = users.User.get_from_environ()
         sheet = google_sheets.get_or_create_sheet_from_settings(
                 title=self.title, emails=self.admins)
 
@@ -112,7 +64,7 @@ class SheetsAuthMiddleware(object):
                 start_response(status, response_headers)
                 return []
 
-        if not can_read(sheet, user, path):
+        if not user.can_read(sheet, path):
             if self.request_access_path:
                 url = self.request_access_path
                 return self.redirect(url, start_response)
